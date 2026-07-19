@@ -1,0 +1,14 @@
+{
+  "uuid": "fan-icon@alhassan",
+  "name": "Fan Speed Indicator",
+  "description": "Displays a smoothly rotating fan icon in the top bar, pulling speed from system sensors.",
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
+  "url": "",
+  "settings-schema": ""
+}
