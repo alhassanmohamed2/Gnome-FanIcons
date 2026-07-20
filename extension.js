@@ -224,6 +224,7 @@ class FanIndicator extends PanelMenu.Button {
                     key: `nvidia_temp_${i}`,
                     label: gpuName,
                     value: tempVal,
+                    category: 'gpu',
                 });
             }
         }
@@ -272,10 +273,12 @@ class FanIndicator extends PanelMenu.Button {
                     isPercentage: false,
                 });
             } else if (type === 'T') {
+                const tempValue = Math.round(rawValue / 1000);
                 temps.push({
                     key: `hwmon_${chip}_temp${idx}`,
                     label: `${label} (${chip})`,
-                    value: Math.round(rawValue / 1000),
+                    value: tempValue,
+                    category: this._classifyTemp(chip, label),
                 });
             }
         }
@@ -328,6 +331,81 @@ class FanIndicator extends PanelMenu.Button {
         }
 
         return {fans, temps};
+    }
+
+    // Classifies a temperature reading into a category based on the
+    // hwmon chip name and sensor label. This lets us intelligently
+    // pick one representative temp from each hardware category for
+    // the compact panel display.
+    //
+    // Known chip→category mappings:
+    //   CPU:   k10temp (AMD), coretemp (Intel)
+    //   GPU:   amdgpu, nouveau, radeon, nvidia
+    //   Board: acpitz (ACPI thermal zone)
+    //   Disk:  nvme, drivetemp
+    _classifyTemp(chip, label) {
+        const c = chip.toLowerCase();
+        const l = label.toLowerCase();
+
+        // CPU
+        if (c === 'k10temp' || c === 'coretemp' || c === 'zenpower')
+            return 'cpu';
+        if (l.includes('tctl') || l.includes('tdie') || l === 'package id 0')
+            return 'cpu';
+
+        // GPU (integrated or discrete)
+        if (c === 'amdgpu' || c === 'nouveau' || c === 'radeon')
+            return 'gpu';
+        if (l === 'edge' || l === 'junction' || l === 'mem')
+            return 'gpu';
+
+        // Motherboard / ACPI thermal zone
+        if (c === 'acpitz' || c.includes('thinkpad') || c.includes('dell') ||
+            c.includes('asus') || c === 'it8665' || c === 'nct6775' ||
+            c === 'nct6776' || c === 'nct6779' || c === 'nct6795' ||
+            c === 'nct6797' || c === 'nct6798')
+            return 'board';
+
+        // Disk (NVMe / SATA)
+        if (c === 'nvme' || c === 'drivetemp')
+            return 'disk';
+
+        // WiFi / other
+        if (c.includes('phy') || c.includes('iwl'))
+            return 'other';
+
+        return 'other';
+    }
+
+    // Selects the 4 most important temperatures for the panel display.
+    // Picks one from each category in priority order: CPU, GPU, Board, Disk.
+    // If a category has no reading, fills remaining slots from leftover temps.
+    _selectPanelTemps(tempsData) {
+        const priority = ['cpu', 'gpu', 'board', 'disk'];
+        const picked = [];
+        const pickedKeys = new Set();
+
+        // First pass: pick one per priority category
+        for (const cat of priority) {
+            if (picked.length >= 4) break;
+            for (let i = 0; i < tempsData.length; i++) {
+                if (tempsData[i].category === cat && !pickedKeys.has(tempsData[i].key)) {
+                    picked.push(tempsData[i]);
+                    pickedKeys.add(tempsData[i].key);
+                    break; // one per category
+                }
+            }
+        }
+
+        // Second pass: fill remaining slots with any unclaimed temps
+        for (let i = 0; i < tempsData.length && picked.length < 4; i++) {
+            if (!pickedKeys.has(tempsData[i].key)) {
+                picked.push(tempsData[i]);
+                pickedKeys.add(tempsData[i].key);
+            }
+        }
+
+        return picked;
     }
 
     // ── Rotation loop management ────────────────────────────────────────
@@ -449,19 +527,25 @@ class FanIndicator extends PanelMenu.Button {
         if (fansData.length > 0 && tempsData.length > 0)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
+        // Smart selection: pick one temp per category (CPU, GPU, Board, Disk)
+        const panelTemps = this._selectPanelTemps(tempsData);
+        const panelKeySet = new Set(panelTemps.map(t => t.key));
+
         const panelTempTexts = [];
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
+            const catLabel = temp.category ? ` [${temp.category.toUpperCase()}]` : '';
             const menuItem = new PopupMenu.PopupMenuItem(
-                `${temp.label}: ${temp.value}°C`);
+                `${temp.label}: ${temp.value}°C${catLabel}`);
             this.menu.addMenuItem(menuItem);
 
-            const isPanel = i < 4;
+            const isPanel = panelKeySet.has(temp.key);
             this._uiTempMap.set(temp.key, {
                 label: temp.label,
                 menuItem,
                 hasPanelPresence: isPanel,
                 lastValue: temp.value,
+                category: temp.category,
             });
 
             if (isPanel) {
