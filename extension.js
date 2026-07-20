@@ -547,7 +547,7 @@ class FanIndicator extends PanelMenu.Button {
                 
             if (isPanel) {
                 this._panelTempKeys.push(temp.key);
-                panelTempTexts.push(`(${pIndex}) ${temp.value}°C`);
+                panelTempTexts.push(`${temp.value}°C`);
                 pIndex++;
             }
 
@@ -624,7 +624,7 @@ class FanIndicator extends PanelMenu.Button {
             for (let i = 0; i < this._panelTempKeys.length; i++) {
                 if (i > 0) str += ' | ';
                 const ui = this._uiTempMap.get(this._panelTempKeys[i]);
-                str += `(${i + 1}) ${ui ? ui.lastValue : '--'}°C`;
+                str += `${ui ? ui.lastValue : '--'}°C`;
             }
             this._panelTempsLabel.set_text(str);
         }
