@@ -315,12 +315,14 @@ class FanIndicator extends PanelMenu.Button {
                         }
 
                         if (subFeature.includes('temp')) {
+                            const lbl = feature.startsWith('temp')
+                                ? `${feature} (${friendlyChip})`
+                                : feature;
                             temps.push({
                                 key: `${chip}_${feature}`,
-                                label: feature.startsWith('temp')
-                                    ? `${feature} (${friendlyChip})`
-                                    : feature,
+                                label: lbl,
                                 value: Math.round(value),
+                                category: this._classifyTemp(friendlyChip, lbl),
                             });
                         }
                     }
@@ -532,26 +534,35 @@ class FanIndicator extends PanelMenu.Button {
         const panelKeySet = new Set(panelTemps.map(t => t.key));
 
         const panelTempTexts = [];
+        let pIndex = 1;
+
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
-            const catLabel = temp.category ? ` [${temp.category.toUpperCase()}]` : '';
+            const isPanel = panelKeySet.has(temp.key);
+            
+            let prefix = isPanel ? `(${pIndex}) ` : '';
+            let catLabel = temp.category && temp.category !== 'other' 
+                ? ` [${temp.category.toUpperCase()}]` 
+                : '';
+                
+            if (isPanel) {
+                this._panelTempKeys.push(temp.key);
+                panelTempTexts.push(`(${pIndex}) ${temp.value}°C`);
+                pIndex++;
+            }
+
             const menuItem = new PopupMenu.PopupMenuItem(
-                `${temp.label}: ${temp.value}°C${catLabel}`);
+                `${prefix}${temp.label}: ${temp.value}°C${catLabel}`);
             this.menu.addMenuItem(menuItem);
 
-            const isPanel = panelKeySet.has(temp.key);
             this._uiTempMap.set(temp.key, {
                 label: temp.label,
                 menuItem,
                 hasPanelPresence: isPanel,
                 lastValue: temp.value,
-                category: temp.category,
+                prefix,
+                catLabel,
             });
-
-            if (isPanel) {
-                this._panelTempKeys.push(temp.key);
-                panelTempTexts.push(`${temp.value}°C`);
-            }
         }
 
         if (panelTempTexts.length > 0) {
@@ -601,7 +612,7 @@ class FanIndicator extends PanelMenu.Button {
 
             if (ui.lastValue !== temp.value) {
                 ui.lastValue = temp.value;
-                ui.menuItem.label.text = `${ui.label}: ${temp.value}°C`;
+                ui.menuItem.label.text = `${ui.prefix}${ui.label}: ${temp.value}°C${ui.catLabel}`;
                 if (ui.hasPanelPresence)
                     tempsDirty = true;
             }
@@ -613,7 +624,7 @@ class FanIndicator extends PanelMenu.Button {
             for (let i = 0; i < this._panelTempKeys.length; i++) {
                 if (i > 0) str += ' | ';
                 const ui = this._uiTempMap.get(this._panelTempKeys[i]);
-                str += `${ui ? ui.lastValue : '--'}°C`;
+                str += `(${i + 1}) ${ui ? ui.lastValue : '--'}°C`;
             }
             this._panelTempsLabel.set_text(str);
         }
