@@ -8,7 +8,6 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-const SENSORS_CMD = ['sensors'];
 const UPDATE_INTERVAL_MS = 2500;
 const ROTATION_INTERVAL_MS = 16; // ~60 fps
 const MAX_RPM = 6000;
@@ -56,10 +55,18 @@ class FanIndicator extends PanelMenu.Button {
             style: 'margin-left: 4px; font-weight: bold;',
         });
 
+        // --- Temperatures UI ---
+        this._tempsLabel = new St.Label({
+            text: '--°C | --°C | --°C | --°C',
+            y_align: Clutter.ActorAlign.CENTER,
+            style: 'margin-left: 12px; font-weight: bold; color: #a8a8a8;',
+        });
+
         box.add_child(this._cpuIcon);
         box.add_child(this._cpuLabel);
         box.add_child(this._gpuIcon);
         box.add_child(this._gpuLabel);
+        box.add_child(this._tempsLabel);
         this.add_child(box);
 
         // State tracking
@@ -70,10 +77,16 @@ class FanIndicator extends PanelMenu.Button {
         this._currentGpuRpm = 0;
         this._targetGpuRpm = 0;
         this._gpuAngle = 0;
+        
+        // Temps
+        this._tctlTemp = '--';
+        this._edgeTemp = '--';
+        this._acpitzTemp = '--';
+        this._rtxTemp = '--';
 
         // Background loops
         this._updateLoopId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, UPDATE_INTERVAL_MS, () => {
-            this._updateFanSpeed();
+            this._updateStats();
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -82,53 +95,72 @@ class FanIndicator extends PanelMenu.Button {
             return GLib.SOURCE_CONTINUE;
         });
 
-        this._updateFanSpeed();
+        this._updateStats();
     }
 
-    _updateFanSpeed() {
-        try {
-            const proc = new Gio.Subprocess({
-                argv: SENSORS_CMD,
-                flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-            });
-            proc.init(null);
+    async _execAsync(argv) {
+        return new Promise((resolve, reject) => {
+            try {
+                const proc = new Gio.Subprocess({
+                    argv: argv,
+                    flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+                });
+                proc.init(null);
 
-            proc.communicate_utf8_async(null, null, (obj, res) => {
-                try {
-                    const [ok, stdout, stderr] = obj.communicate_utf8_finish(res);
-                    if (ok && stdout) {
-                        this._parseSensorsOutput(stdout);
+                proc.communicate_utf8_async(null, null, (obj, res) => {
+                    try {
+                        const [ok, stdout, stderr] = obj.communicate_utf8_finish(res);
+                        if (ok) resolve(stdout);
+                        else reject(new Error(stderr));
+                    } catch (e) {
+                        reject(e);
                     }
-                } catch (e) {
-                    console.error(`Fan Indicator: Error reading sensors output: ${e.message}`);
-                }
-            });
+                });
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    async _updateStats() {
+        try {
+            const sensorsOut = await this._execAsync(['sensors']);
+            if (sensorsOut) this._parseSensorsOutput(sensorsOut);
         } catch (e) {
-            console.error(`Fan Indicator: Error spawning sensors: ${e.message}`);
+            console.error(`Fan Indicator: sensors error: ${e.message}`);
         }
+
+        try {
+            const nvidiaOut = await this._execAsync(['nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv,noheader']);
+            if (nvidiaOut) {
+                const temp = nvidiaOut.trim();
+                if (temp) this._rtxTemp = temp;
+            }
+        } catch (e) {
+            console.error(`Fan Indicator: nvidia-smi error: ${e.message}`);
+        }
+
+        // Update Temps Text (Tctl | edge | acpitz | RTX)
+        this._tempsLabel.set_text(`${this._tctlTemp}°C | ${this._edgeTemp}°C | ${this._acpitzTemp}°C | ${this._rtxTemp}°C`);
     }
 
     _parseSensorsOutput(output) {
-        if (!output) {
-            return;
-        }
+        // Parse Fans
+        const cpuMatch = output.match(/cpu_fan:\s+(\d+)\s+RPM/i);
+        this._targetCpuRpm = (cpuMatch && cpuMatch[1]) ? parseInt(cpuMatch[1], 10) : 0;
 
-        const cpuRegex = /cpu_fan:\s+(\d+)\s+RPM/i;
-        const gpuRegex = /gpu_fan:\s+(\d+)\s+RPM/i;
+        const gpuMatch = output.match(/gpu_fan:\s+(\d+)\s+RPM/i);
+        this._targetGpuRpm = (gpuMatch && gpuMatch[1]) ? parseInt(gpuMatch[1], 10) : 0;
 
-        const cpuMatch = output.match(cpuRegex);
-        if (cpuMatch && cpuMatch[1]) {
-            this._targetCpuRpm = parseInt(cpuMatch[1], 10);
-        } else {
-            this._targetCpuRpm = 0; // Fallback to 0 if disconnected or failed
-        }
+        // Parse Temps
+        const tctlMatch = output.match(/Tctl:\s+\+([0-9.]+)/);
+        if (tctlMatch) this._tctlTemp = Math.round(parseFloat(tctlMatch[1])).toString();
 
-        const gpuMatch = output.match(gpuRegex);
-        if (gpuMatch && gpuMatch[1]) {
-            this._targetGpuRpm = parseInt(gpuMatch[1], 10);
-        } else {
-            this._targetGpuRpm = 0; // Fallback to 0 if disconnected or failed
-        }
+        const edgeMatch = output.match(/edge:\s+\+([0-9.]+)/);
+        if (edgeMatch) this._edgeTemp = Math.round(parseFloat(edgeMatch[1])).toString();
+
+        const acpitzMatch = output.match(/acpitz-acpi-0[\s\S]*?temp1:\s+\+([0-9.]+)/);
+        if (acpitzMatch) this._acpitzTemp = Math.round(parseFloat(acpitzMatch[1])).toString();
 
         // Update UI Text
         this._cpuLabel.set_text(`${this._targetCpuRpm} RPM`);
