@@ -18,25 +18,26 @@ const SMOOTHING_FACTOR = 0.1;     // Adjusted for 30fps convergence rate
 const SENSORS_INTERVAL = 4;       // Run `sensors -j` every Nth poll cycle (~12s)
 
 // Pre-built hwmon shell script (allocated once, never recreated)
-const HWMON_SCRIPT = `
-for dir in /sys/class/hwmon/hwmon*; do
-  [ -d "$dir" ] || continue
-  chip=$(cat "$dir/name" 2>/dev/null || basename "$dir")
-  for f in "$dir"/fan*_input; do
-    [ -f "$f" ] || continue
-    idx=$(echo "$f" | grep -oP 'fan\\K[0-9]+')
-    val=$(cat "$f" 2>/dev/null) || continue
-    lbl=$(cat "$dir/fan${idx}_label" 2>/dev/null || echo "fan${idx}")
-    echo "F|$chip|$idx|$lbl|$val"
-  done
-  for f in "$dir"/temp*_input; do
-    [ -f "$f" ] || continue
-    idx=$(echo "$f" | grep -oP 'temp\\K[0-9]+')
-    val=$(cat "$f" 2>/dev/null) || continue
-    lbl=$(cat "$dir/temp${idx}_label" 2>/dev/null || echo "temp${idx}")
-    echo "T|$chip|$idx|$lbl|$val"
-  done
-done`;
+const HWMON_SCRIPT = [
+    'for dir in /sys/class/hwmon/hwmon*; do',
+    '  [ -d "$dir" ] || continue',
+    '  chip=$(cat "$dir/name" 2>/dev/null || basename "$dir")',
+    '  for f in "$dir"/fan*_input; do',
+    '    [ -f "$f" ] || continue',
+    '    idx=$(echo "$f" | grep -oP "fan\\K[0-9]+")',
+    '    val=$(cat "$f" 2>/dev/null) || continue',
+    '    lbl=$(cat "$dir/fan${idx}_label" 2>/dev/null || echo "fan${idx}")',
+    '    echo "F|$chip|$idx|$lbl|$val"',
+    '  done',
+    '  for f in "$dir"/temp*_input; do',
+    '    [ -f "$f" ] || continue',
+    '    idx=$(echo "$f" | grep -oP "temp\\K[0-9]+")',
+    '    val=$(cat "$f" 2>/dev/null) || continue',
+    '    lbl=$(cat "$dir/temp${idx}_label" 2>/dev/null || echo "temp${idx}")',
+    '    echo "T|$chip|$idx|$lbl|$val"',
+    '  done',
+    'done',
+].join('\n');
 
 const FanIndicator = GObject.registerClass(
 class FanIndicator extends PanelMenu.Button {
