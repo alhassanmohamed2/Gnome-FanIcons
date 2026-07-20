@@ -87,12 +87,22 @@ class FanIndicator extends PanelMenu.Button {
 
     _updateFanSpeed() {
         try {
-            const [ok, stdout, stderr, exit_status] = GLib.spawn_command_line_sync('sensors');
-            if (ok && stdout) {
-                const textDecoder = new TextDecoder('utf-8');
-                const output = textDecoder.decode(stdout);
-                this._parseSensorsOutput(output);
-            }
+            const proc = new Gio.Subprocess({
+                argv: SENSORS_CMD,
+                flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+            });
+            proc.init(null);
+
+            proc.communicate_utf8_async(null, null, (obj, res) => {
+                try {
+                    const [ok, stdout, stderr] = obj.communicate_utf8_finish(res);
+                    if (ok && stdout) {
+                        this._parseSensorsOutput(stdout);
+                    }
+                } catch (e) {
+                    console.error(`Fan Indicator: Error reading sensors output: ${e.message}`);
+                }
+            });
         } catch (e) {
             console.error(`Fan Indicator: Error spawning sensors: ${e.message}`);
         }
