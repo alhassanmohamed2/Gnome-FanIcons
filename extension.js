@@ -59,7 +59,7 @@ class FanIndicator extends PanelMenu.Button {
         this._tempsLabel = new St.Label({
             text: '--°C | --°C | --°C | --°C',
             y_align: Clutter.ActorAlign.CENTER,
-            style: 'margin-left: 12px; font-weight: bold; color: #a8a8a8;',
+            style: 'margin-left: 12px; font-weight: bold; color: #ff5500;',
         });
 
         box.add_child(this._cpuIcon);
