@@ -57,7 +57,7 @@ class FanIndicator extends PanelMenu.Button {
 
         // --- Temperatures UI ---
         this._tempsLabel = new St.Label({
-            text: '--°C | --°C | --°C | --°C',
+            text: '🔥 --°C | --°C | --°C | --°C',
             y_align: Clutter.ActorAlign.CENTER,
             style: 'margin-left: 12px; font-weight: bold; color: #ff5500;',
         });
@@ -164,7 +164,7 @@ class FanIndicator extends PanelMenu.Button {
         // Update Top Bar Text
         this._cpuLabel.set_text(`${this._targetCpuRpm} RPM`);
         this._gpuLabel.set_text(`${this._targetGpuRpm} RPM`);
-        this._tempsLabel.set_text(`${this._tctlTemp}°C | ${this._edgeTemp}°C | ${this._acpitzTemp}°C | ${this._rtxTemp}°C`);
+        this._tempsLabel.set_text(`🔥 ${this._tctlTemp}°C | ${this._edgeTemp}°C | ${this._acpitzTemp}°C | ${this._rtxTemp}°C`);
 
         // Update Popup Menu Text
         this._cpuFanItem.label.text = `CPU Fan: ${this._targetCpuRpm} RPM`;
