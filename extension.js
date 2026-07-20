@@ -6,6 +6,7 @@ import Clutter from 'gi://Clutter';
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const UPDATE_INTERVAL_MS = 2500;
@@ -19,13 +20,12 @@ class FanIndicator extends PanelMenu.Button {
     _init(extensionPath) {
         super._init(0.0, 'Fan Indicator');
 
-        // Main layout container
+        // Main layout container (Top Bar)
         const box = new St.BoxLayout({
             style_class: 'panel-status-indicators-box',
             vertical: false,
         });
 
-        // Use the new valid fan SVG provided by the user
         const iconPath = extensionPath + '/fan-symbolic.svg';
         const gicon = Gio.icon_new_for_string(iconPath);
 
@@ -68,6 +68,27 @@ class FanIndicator extends PanelMenu.Button {
         box.add_child(this._gpuLabel);
         box.add_child(this._tempsLabel);
         this.add_child(box);
+
+        // --- Popup Menu Setup ---
+        this._cpuFanItem = new PopupMenu.PopupMenuItem('CPU Fan: -- RPM');
+        this.menu.addMenuItem(this._cpuFanItem);
+
+        this._gpuFanItem = new PopupMenu.PopupMenuItem('GPU Fan: -- RPM');
+        this.menu.addMenuItem(this._gpuFanItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        this._cpuTempItem = new PopupMenu.PopupMenuItem('CPU (Tctl): --°C');
+        this.menu.addMenuItem(this._cpuTempItem);
+
+        this._igpuTempItem = new PopupMenu.PopupMenuItem('iGPU (edge): --°C');
+        this.menu.addMenuItem(this._igpuTempItem);
+
+        this._mbTempItem = new PopupMenu.PopupMenuItem('Motherboard (acpitz): --°C');
+        this.menu.addMenuItem(this._mbTempItem);
+
+        this._rtxTempItem = new PopupMenu.PopupMenuItem('NVIDIA RTX: --°C');
+        this.menu.addMenuItem(this._rtxTempItem);
 
         // State tracking
         this._currentCpuRpm = 0;
@@ -140,8 +161,18 @@ class FanIndicator extends PanelMenu.Button {
             console.error(`Fan Indicator: nvidia-smi error: ${e.message}`);
         }
 
-        // Update Temps Text (Tctl | edge | acpitz | RTX)
+        // Update Top Bar Text
+        this._cpuLabel.set_text(`${this._targetCpuRpm} RPM`);
+        this._gpuLabel.set_text(`${this._targetGpuRpm} RPM`);
         this._tempsLabel.set_text(`${this._tctlTemp}°C | ${this._edgeTemp}°C | ${this._acpitzTemp}°C | ${this._rtxTemp}°C`);
+
+        // Update Popup Menu Text
+        this._cpuFanItem.label.text = `CPU Fan: ${this._targetCpuRpm} RPM`;
+        this._gpuFanItem.label.text = `GPU Fan: ${this._targetGpuRpm} RPM`;
+        this._cpuTempItem.label.text = `CPU (Tctl): ${this._tctlTemp}°C`;
+        this._igpuTempItem.label.text = `iGPU (edge): ${this._edgeTemp}°C`;
+        this._mbTempItem.label.text = `Motherboard (acpitz): ${this._acpitzTemp}°C`;
+        this._rtxTempItem.label.text = `NVIDIA RTX: ${this._rtxTemp}°C`;
     }
 
     _parseSensorsOutput(output) {
@@ -161,10 +192,6 @@ class FanIndicator extends PanelMenu.Button {
 
         const acpitzMatch = output.match(/acpitz-acpi-0[\s\S]*?temp1:\s+\+([0-9.]+)/);
         if (acpitzMatch) this._acpitzTemp = Math.round(parseFloat(acpitzMatch[1])).toString();
-
-        // Update UI Text
-        this._cpuLabel.set_text(`${this._targetCpuRpm} RPM`);
-        this._gpuLabel.set_text(`${this._targetGpuRpm} RPM`);
     }
 
     _rotateIcons() {
