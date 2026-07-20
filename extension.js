@@ -10,11 +10,11 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 // ── Tuning constants ────────────────────────────────────────────────────
-const UPDATE_INTERVAL_MS = 3000;   // Poll sensors every 3s (was 2.5s)
-const ROTATION_INTERVAL_MS = 33;   // ~30 fps (was 16ms / 60fps) — still smooth, halves CPU
+const UPDATE_INTERVAL_MS = 3000;   // Poll sensors every 3s
+const ROTATION_INTERVAL_MS = 16;   // ~60 fps for ultra-smooth rotation
 const MAX_RPM = 6000;
-const MAX_DEGREES_PER_FRAME = 15;  // Scaled for 30fps (was 30 at 60fps)
-const SMOOTHING_FACTOR = 0.1;     // Adjusted for 30fps convergence rate
+const MAX_DEGREES_PER_FRAME = 30;
+const SMOOTHING_FACTOR = 0.05;
 const SENSORS_INTERVAL = 4;       // Run `sensors -j` every Nth poll cycle (~12s)
 
 // Pre-built hwmon shell script (allocated once, never recreated)
@@ -137,9 +137,11 @@ class FanIndicator extends PanelMenu.Button {
             for (let i = 0; i < hwmon.temps.length; i++) addTemp(hwmon.temps[i]);
         } catch (_e) { /* hwmon unavailable */ }
 
-        // 2. lm-sensors JSON (throttled: every Nth cycle, skip if binary missing)
+        // 2. lm-sensors JSON (only used as fallback when hwmon found nothing,
+        //    throttled to every Nth cycle, skipped if binary is missing)
         this._pollCount++;
-        if (this._sensorsAvailable && (this._pollCount % SENSORS_INTERVAL) === 0) {
+        const hwmonHasData = fans.length > 0 || temps.length > 0;
+        if (!hwmonHasData && this._sensorsAvailable && (this._pollCount % SENSORS_INTERVAL) === 0) {
             try {
                 const sensorsJson = await this._execAsync(['sensors', '-j']);
                 if (sensorsJson) {
