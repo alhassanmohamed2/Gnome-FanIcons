@@ -1,7 +1,7 @@
 {
   "uuid": "fan-icon@alhassan",
   "name": "Fan Speed Indicator",
-  "description": "Displays a smoothly rotating fan icon in the top bar, pulling speed from system sensors.",
+  "description": "Displays rotating fan icons with live RPM and temperature readings in the top bar. Automatically detects all fans and thermal sensors via hwmon, lm-sensors, and nvidia-smi.",
   "shell-version": [
     "46",
     "47",
