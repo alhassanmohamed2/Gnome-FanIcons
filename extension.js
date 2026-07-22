@@ -427,6 +427,23 @@ class FanIndicator extends PanelMenu.Button {
         return Math.round(Math.sqrt(sumWeightedSquares / sumWeights));
     }
 
+    _getTempColor(val) {
+        if (val === '--') return '#a3a3a3';
+        if (val < 50) return '#33d17a'; // Green
+        if (val < 70) return '#f6d32d'; // Yellow
+        return '#ff5500'; // Orange-Red
+    }
+
+    _getCategoryIcon(cat) {
+        switch (cat) {
+            case 'cpu': return 'computer-symbolic';
+            case 'gpu': return 'video-display-symbolic';
+            case 'disk': return 'drive-harddisk-symbolic';
+            case 'board': return 'drive-harddisk-system-symbolic';
+            default: return 'temperature-symbolic';
+        }
+    }
+
     // ── Rotation loop management ────────────────────────────────────────
     // Only runs the 30fps timer when at least one fan has a visible icon
     // and is actually spinning. Completely paused otherwise → zero CPU
@@ -548,45 +565,62 @@ class FanIndicator extends PanelMenu.Button {
 
         if (tempsData.length > 0) {
             const sysTemp = this._calculateSystemTemp(tempsData);
-            this._uiSysTempMenuItem = new PopupMenu.PopupMenuItem(
-                `🔥 System Temperature: ${sysTemp}°C [RMS]`);
+            const color = this._getTempColor(sysTemp);
+            this._uiSysTempMenuItem = new PopupMenu.PopupImageMenuItem(
+                `System Temperature: ${sysTemp}°C [RMS]`, 'temperature-symbolic');
+            this._uiSysTempMenuItem.label.set_style(`color: ${color}; font-weight: bold;`);
             this.menu.addMenuItem(this._uiSysTempMenuItem);
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
+        const categorySubMenus = {};
+        const catOrder = { 'cpu': 1, 'gpu': 2, 'board': 3, 'disk': 4, 'other': 5 };
+        const catNames = { 'cpu': 'CPU', 'gpu': 'GPU', 'board': 'Motherboard', 'disk': 'Storage', 'other': 'Other Sensors' };
+        
+        tempsData.sort((a, b) => (catOrder[a.category] || 5) - (catOrder[b.category] || 5));
+
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
-            const catLabel = temp.category && temp.category !== 'other' 
-                ? ` [${temp.category.toUpperCase()}]` 
-                : '';
-                
-            const menuItem = new PopupMenu.PopupMenuItem(
-                `${temp.label}: ${temp.value}°C${catLabel}`);
-            this.menu.addMenuItem(menuItem);
+            const cat = temp.category || 'other';
+
+            if (!categorySubMenus[cat]) {
+                const subMenu = new PopupMenu.PopupSubMenuMenuItem(`${catNames[cat]} Sensors`);
+                this.menu.addMenuItem(subMenu);
+                categorySubMenus[cat] = subMenu;
+            }
+
+            const iconName = this._getCategoryIcon(cat);
+            const color = this._getTempColor(temp.value);
+            
+            const menuItem = new PopupMenu.PopupImageMenuItem(
+                `${temp.label}: ${temp.value}°C`, iconName);
+            menuItem.label.set_style(`color: ${color};`);
+            
+            categorySubMenus[cat].menu.addMenuItem(menuItem);
 
             this._uiTempMap.set(temp.key, {
                 label: temp.label,
                 menuItem,
                 lastValue: temp.value,
-                catLabel,
             });
         }
 
         if (tempsData.length > 0) {
             const sysTemp = this._calculateSystemTemp(tempsData);
+            const color = this._getTempColor(sysTemp);
             
             this._panelTempIcon = new St.Icon({
                 icon_name: 'temperature-symbolic',
                 style_class: 'system-status-icon',
                 y_align: Clutter.ActorAlign.CENTER,
-                style: 'margin-left: 6px; color: #ff5500;'
+                style: `margin-left: 6px; color: ${color};`
             });
             this._box.add_child(this._panelTempIcon);
 
             this._panelTempsLabel = new St.Label({
                 text: `${sysTemp}°C`,
                 y_align: Clutter.ActorAlign.CENTER,
-                style: 'margin-left: 2px; font-weight: bold; color: #ff5500;',
+                style: `margin-left: 2px; font-weight: bold; color: ${color};`,
             });
             this._box.add_child(this._panelTempsLabel);
         }
@@ -629,16 +663,26 @@ class FanIndicator extends PanelMenu.Button {
 
             if (ui.lastValue !== temp.value) {
                 ui.lastValue = temp.value;
-                ui.menuItem.label.text = `${ui.label}: ${temp.value}°C${ui.catLabel}`;
+                ui.menuItem.label.text = `${ui.label}: ${temp.value}°C`;
+                ui.menuItem.label.set_style(`color: ${this._getTempColor(temp.value)};`);
                 tempsDirty = true;
             }
         }
 
         if (tempsDirty && this._panelTempsLabel) {
             const sysTemp = this._calculateSystemTemp(tempsData);
+            const color = this._getTempColor(sysTemp);
+            
             this._panelTempsLabel.set_text(`${sysTemp}°C`);
-            if (this._uiSysTempMenuItem)
-                this._uiSysTempMenuItem.label.text = `🔥 System Temperature: ${sysTemp}°C [RMS]`;
+            this._panelTempsLabel.set_style(`margin-left: 2px; font-weight: bold; color: ${color};`);
+            
+            if (this._panelTempIcon) {
+                this._panelTempIcon.set_style(`margin-left: 6px; color: ${color};`);
+            }
+            if (this._uiSysTempMenuItem) {
+                this._uiSysTempMenuItem.label.text = `System Temperature: ${sysTemp}°C [RMS]`;
+                this._uiSysTempMenuItem.label.set_style(`color: ${color}; font-weight: bold;`);
+            }
         }
     }
 
