@@ -406,35 +406,25 @@ class FanIndicator extends PanelMenu.Button {
         return 'other';
     }
 
-    // Selects the 4 most important temperatures for the panel display.
-    // Picks one from each category in priority order: CPU, GPU, Board, Disk.
-    // If a category has no reading, fills remaining slots from leftover temps.
-    _selectPanelTemps(tempsData) {
-        const priority = ['cpu', 'gpu', 'board', 'disk'];
-        const picked = [];
-        const pickedKeys = new Set();
+    // Calculates a true System Temperature using Category-Weighted RMS
+    _calculateSystemTemp(tempsData) {
+        if (tempsData.length === 0) return '--';
 
-        // First pass: pick one per priority category
-        for (const cat of priority) {
-            if (picked.length >= 4) break;
-            for (let i = 0; i < tempsData.length; i++) {
-                if (tempsData[i].category === cat && !pickedKeys.has(tempsData[i].key)) {
-                    picked.push(tempsData[i]);
-                    pickedKeys.add(tempsData[i].key);
-                    break; // one per category
-                }
-            }
+        let sumWeightedSquares = 0;
+        let sumWeights = 0;
+
+        for (let i = 0; i < tempsData.length; i++) {
+            const temp = tempsData[i];
+            let w = 0.2; // default low weight
+            if (temp.category === 'cpu' || temp.category === 'gpu') w = 1.0;
+            else if (temp.category === 'board' || temp.category === 'disk') w = 0.5;
+
+            sumWeightedSquares += w * (temp.value * temp.value);
+            sumWeights += w;
         }
 
-        // Second pass: fill remaining slots with any unclaimed temps
-        for (let i = 0; i < tempsData.length && picked.length < 4; i++) {
-            if (!pickedKeys.has(tempsData[i].key)) {
-                picked.push(tempsData[i]);
-                pickedKeys.add(tempsData[i].key);
-            }
-        }
-
-        return picked;
+        if (sumWeights === 0) return '--';
+        return Math.round(Math.sqrt(sumWeightedSquares / sumWeights));
     }
 
     // ── Rotation loop management ────────────────────────────────────────
@@ -556,45 +546,28 @@ class FanIndicator extends PanelMenu.Button {
         if (fansData.length > 0 && tempsData.length > 0)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Smart selection: pick one temp per category (CPU, GPU, Board, Disk)
-        const panelTemps = this._selectPanelTemps(tempsData);
-        const panelKeySet = new Set(panelTemps.map(t => t.key));
-
-        const panelTempTexts = [];
-        let pIndex = 1;
-
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
-            const isPanel = panelKeySet.has(temp.key);
-            
-            let prefix = isPanel ? `(${pIndex}) ` : '';
-            let catLabel = temp.category && temp.category !== 'other' 
+            const catLabel = temp.category && temp.category !== 'other' 
                 ? ` [${temp.category.toUpperCase()}]` 
                 : '';
                 
-            if (isPanel) {
-                this._panelTempKeys.push(temp.key);
-                panelTempTexts.push(`${temp.value}°C`);
-                pIndex++;
-            }
-
             const menuItem = new PopupMenu.PopupMenuItem(
-                `${prefix}${temp.label}: ${temp.value}°C${catLabel}`);
+                `${temp.label}: ${temp.value}°C${catLabel}`);
             this.menu.addMenuItem(menuItem);
 
             this._uiTempMap.set(temp.key, {
                 label: temp.label,
                 menuItem,
-                hasPanelPresence: isPanel,
                 lastValue: temp.value,
-                prefix,
                 catLabel,
             });
         }
 
-        if (panelTempTexts.length > 0) {
+        if (tempsData.length > 0) {
+            const sysTemp = this._calculateSystemTemp(tempsData);
             this._panelTempsLabel = new St.Label({
-                text: `🔥 ${panelTempTexts.join(' | ')}`,
+                text: `🔥 ${sysTemp}°C`,
                 y_align: Clutter.ActorAlign.CENTER,
                 style: 'margin-left: 4px; font-weight: bold; color: #ff5500;',
             });
@@ -630,7 +603,7 @@ class FanIndicator extends PanelMenu.Button {
             }
         }
 
-        // Update temps — only rebuild panel string if any value changed
+        // Update temps — recalculate RMS system temp if any value changed
         let tempsDirty = false;
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
@@ -639,21 +612,14 @@ class FanIndicator extends PanelMenu.Button {
 
             if (ui.lastValue !== temp.value) {
                 ui.lastValue = temp.value;
-                ui.menuItem.label.text = `${ui.prefix}${ui.label}: ${temp.value}°C${ui.catLabel}`;
-                if (ui.hasPanelPresence)
-                    tempsDirty = true;
+                ui.menuItem.label.text = `${ui.label}: ${temp.value}°C${ui.catLabel}`;
+                tempsDirty = true;
             }
         }
 
-        // Only rebuild the panel temps string when at least one value changed
         if (tempsDirty && this._panelTempsLabel) {
-            let str = '🔥 ';
-            for (let i = 0; i < this._panelTempKeys.length; i++) {
-                if (i > 0) str += ' | ';
-                const ui = this._uiTempMap.get(this._panelTempKeys[i]);
-                str += `${ui ? ui.lastValue : '--'}°C`;
-            }
-            this._panelTempsLabel.set_text(str);
+            const sysTemp = this._calculateSystemTemp(tempsData);
+            this._panelTempsLabel.set_text(`🔥 ${sysTemp}°C`);
         }
     }
 

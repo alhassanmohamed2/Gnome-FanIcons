@@ -7,8 +7,8 @@ A GNOME Shell extension that adds beautifully rotating CPU and GPU fan icons to 
 ## Features
 * **Universal Hardware Support:** Auto-detects fans and thermal sensors via direct `hwmon` sysfs reads, `lm-sensors`, and `nvidia-smi` without requiring complex configuration.
 * **Smart Temperature Tracking:** Intelligently scans and categorizes your hardware sensors to automatically display your most critical temperatures: **CPU, GPU, Motherboard, and Disk**.
-* **Interactive Popup Menu:** Click the top bar to see a detailed dropdown menu mapping every fan speed and temperature to its specific hardware component. Uses indexed tracking `(1)`, `(2)`, etc. to easily match top-bar readings to their exact hardware labels.
-* **Clean Top Bar Readouts:** Displays rotating fan icons, RPM speeds, and a compact fiery temperature readout (`🔥 64°C | 53°C | ...`).
+* **Interactive Popup Menu:** Click the top bar to see a detailed dropdown menu mapping every individual fan speed and temperature to its specific hardware component.
+* **True System Temperature:** Replaces cluttered temperature numbers with a single, highly stable, mathematically weighted "System Temperature" calculated using a Category-Weighted Root Mean Square (RMS). Critical components like the CPU/GPU carry heavy weights, giving you the ultimate thermal summary of your machine in a single clean metric (`🔥 56°C`).
 * **Fluid Rotation Physics:** Fan animation speeds are mapped proportionally to your live hardware RPM.
 * **Built for GNOME 46+:** Fully modernized using ESM module imports.
 
