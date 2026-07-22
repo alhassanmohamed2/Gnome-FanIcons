@@ -566,10 +566,19 @@ class FanIndicator extends PanelMenu.Button {
 
         if (tempsData.length > 0) {
             const sysTemp = this._calculateSystemTemp(tempsData);
-            this._panelTempsLabel = new St.Label({
-                text: `🔥 ${sysTemp}°C`,
+            
+            this._panelTempIcon = new St.Icon({
+                icon_name: 'temperature-symbolic',
+                style_class: 'system-status-icon',
                 y_align: Clutter.ActorAlign.CENTER,
-                style: 'margin-left: 4px; font-weight: bold; color: #ff5500;',
+                style: 'margin-left: 6px; color: #ff5500;'
+            });
+            this._box.add_child(this._panelTempIcon);
+
+            this._panelTempsLabel = new St.Label({
+                text: `${sysTemp}°C`,
+                y_align: Clutter.ActorAlign.CENTER,
+                style: 'margin-left: 2px; font-weight: bold; color: #ff5500;',
             });
             this._box.add_child(this._panelTempsLabel);
         }
@@ -619,7 +628,7 @@ class FanIndicator extends PanelMenu.Button {
 
         if (tempsDirty && this._panelTempsLabel) {
             const sysTemp = this._calculateSystemTemp(tempsData);
-            this._panelTempsLabel.set_text(`🔥 ${sysTemp}°C`);
+            this._panelTempsLabel.set_text(`${sysTemp}°C`);
         }
     }
 
