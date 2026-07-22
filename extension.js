@@ -39,6 +39,30 @@ const HWMON_SCRIPT = [
     'done',
 ].join('\n');
 
+// Script to check if the NVIDIA GPU is awake (avoids waking it via nvidia-smi)
+const CHECK_NVIDIA_AWAKE_SCRIPT = [
+    'AWAKE=1', // Assume awake if no NVIDIA card found or error
+    'for d in /sys/bus/pci/devices/*; do',
+    '  if [ -f "$d/vendor" ]; then',
+    '    v=$(cat "$d/vendor" 2>/dev/null)',
+    '    if [ "$v" = "0x10de" ]; then',
+    '      AWAKE=0', // Found NVIDIA, default to asleep
+    '      if [ -f "$d/power/runtime_status" ]; then',
+    '        s=$(cat "$d/power/runtime_status" 2>/dev/null)',
+    '        if [ "$s" != "suspended" ]; then',
+    '          AWAKE=1',
+    '          break',
+    '        fi',
+    '      else',
+    '        AWAKE=1',
+    '        break',
+    '      fi',
+    '    fi',
+    '  fi',
+    'done',
+    'echo $AWAKE',
+].join('\n');
+
 const FanIndicator = GObject.registerClass(
 class FanIndicator extends PanelMenu.Button {
     _init(extensionPath) {
@@ -155,15 +179,18 @@ class FanIndicator extends PanelMenu.Button {
             }
         }
 
-        // 3. NVIDIA GPU (skip if binary missing)
+        // 3. NVIDIA GPU (skip if binary missing or if GPU is asleep/D3cold)
         if (this._nvidiaAvailable) {
             try {
-                const nvidiaOut = await this._execAsync([
-                    'nvidia-smi',
-                    '--query-gpu=name,temperature.gpu,fan.speed',
-                    '--format=csv,noheader',
-                ]);
-                if (nvidiaOut) this._parseNvidiaOutput(nvidiaOut, addFan, addTemp);
+                const awakeOut = await this._execAsync(['sh', '-c', CHECK_NVIDIA_AWAKE_SCRIPT]);
+                if (awakeOut.trim() === '1') {
+                    const nvidiaOut = await this._execAsync([
+                        'nvidia-smi',
+                        '--query-gpu=name,temperature.gpu,fan.speed',
+                        '--format=csv,noheader',
+                    ]);
+                    if (nvidiaOut) this._parseNvidiaOutput(nvidiaOut, addFan, addTemp);
+                }
             } catch (e) {
                 if (/No such file|not found/i.test(e.message))
                     this._nvidiaAvailable = false;

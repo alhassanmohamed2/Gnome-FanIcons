@@ -15,6 +15,7 @@ A GNOME Shell extension that adds beautifully rotating CPU and GPU fan icons to 
 ## Performance & Optimizations
 This extension is heavily optimized to consume almost zero CPU and RAM:
 * **Zero Idle CPU:** The rotation animation loop automatically pauses when all fans drop to 0 RPM.
+* **Zero GPU Wakeups:** Smartly checks the PCI power state of NVIDIA GPUs and safely skips querying them if they are asleep (D3cold), saving massive amounts of laptop battery life.
 * **Efficient Polling:** Uses `lm-sensors` only as a fallback, throttles heavy subprocess spawns, and caches binary availability to prevent wasted CPU cycles.
 * **Consolidated Sysfs Reads:** Uses a single shell command to read all `/sys/class/hwmon` directories at once instead of spawning dozens of individual subprocesses.
 * **60 FPS Physics:** Buttery smooth `GJS` physics animations dynamically synced to 60 FPS for ultra-fluid fan rotation.
