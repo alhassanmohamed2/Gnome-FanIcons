@@ -546,6 +546,14 @@ class FanIndicator extends PanelMenu.Button {
         if (fansData.length > 0 && tempsData.length > 0)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
+        if (tempsData.length > 0) {
+            const sysTemp = this._calculateSystemTemp(tempsData);
+            this._uiSysTempMenuItem = new PopupMenu.PopupMenuItem(
+                `🔥 System Temperature: ${sysTemp}°C [RMS]`);
+            this.menu.addMenuItem(this._uiSysTempMenuItem);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        }
+
         for (let i = 0; i < tempsData.length; i++) {
             const temp = tempsData[i];
             const catLabel = temp.category && temp.category !== 'other' 
@@ -629,6 +637,8 @@ class FanIndicator extends PanelMenu.Button {
         if (tempsDirty && this._panelTempsLabel) {
             const sysTemp = this._calculateSystemTemp(tempsData);
             this._panelTempsLabel.set_text(`${sysTemp}°C`);
+            if (this._uiSysTempMenuItem)
+                this._uiSysTempMenuItem.label.text = `🔥 System Temperature: ${sysTemp}°C [RMS]`;
         }
     }
 
