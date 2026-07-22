@@ -1,6 +1,6 @@
 # GNOME Fan Speed Indicator
 
-![Fan Speed Indicator](example.png)
+![Fan Speed Indicator](screenshot.png)
 
 A GNOME Shell extension that adds beautifully rotating CPU and GPU fan icons to your top bar. It reads real-time data from your system hardware and rotates the fan icons at speeds dynamically mapped to your actual RPM!
 
